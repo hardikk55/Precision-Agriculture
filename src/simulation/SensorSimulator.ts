@@ -1,16 +1,9 @@
-import type { Patch } from '../models/farm'
-
-export interface SensorProvider { advance(patch: Patch, step: number): Patch }
-
-export class SimulatedSensorProvider implements SensorProvider {
-  constructor(private readonly evaporationRate: number) {}
-  advance(patch: Patch, step: number): Patch {
-    const drift = (((patch.row * 7 + patch.column * 5 + step * 3) % 9) - 4) / 10
-    return {
-      ...patch,
-      soilMoisture: Number(Math.max(0, patch.soilMoisture - this.evaporationRate + drift / 8).toFixed(1)),
-      temperature: Number(Math.min(40, Math.max(20, patch.temperature + drift / 3)).toFixed(1)),
-      humidity: Number(Math.min(90, Math.max(30, patch.humidity - drift / 2)).toFixed(1)),
-    }
-  }
+import { farmConfig, type Farm, type MoistureSensor, type Patch } from '../models/farm'
+export interface SensorProvider { sampleFarm(farm: Farm, time: Date, sample: number, irrigatedPatchId?: string): Farm; setReading(farm: Farm, sensorId: string, moisture: number, time: Date): Farm }
+export class SimulatedCapacitiveMoistureSensorProvider implements SensorProvider {
+  constructor(private readonly noiseLevel: number) {}
+  private reading(patch: Patch, sample: number) { const noise = (((patch.row * 13 + patch.column * 7 + sample * 5) % 11) - 5) / 5 * this.noiseLevel; return Number(Math.max(0, Math.min(100, patch.actualMoisture + noise)).toFixed(1)) }
+  sampleFarm(farm: Farm, time: Date, sample: number, irrigatedPatchId?: string): Farm { const label = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); const patches = farm.patches.map((patch) => { const moisture = this.reading(patch, sample); return { ...patch, soilMoisture: moisture, history: [...patch.history, { time: label, moisture, irrigated: patch.id === irrigatedPatchId }].slice(-farmConfig.maxHistoryPoints) } }); const sensors: MoistureSensor[] = farm.sensors.map((sensor) => { const patch = patches.find((item) => item.sensorId === sensor.id)!; return { ...sensor, currentReading: patch.soilMoisture, lastReading: label } }); return { patches, sensors } }
+  setReading(farm: Farm, sensorId: string, moisture: number, time: Date): Farm { const label = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); const bounded = Number(Math.max(0, Math.min(100, moisture)).toFixed(1)); const patches = farm.patches.map((patch) => patch.sensorId === sensorId ? { ...patch, soilMoisture: bounded, actualMoisture: bounded, history: [...patch.history, { time: label, moisture: bounded }].slice(-farmConfig.maxHistoryPoints) } : patch); return { patches, sensors: farm.sensors.map((sensor) => sensor.id === sensorId ? { ...sensor, currentReading: bounded, lastReading: label } : sensor) } }
 }
+export class SimulatedEnvironmentProvider { advance(patch: Patch, step: number): Patch { const drift = (((patch.row * 7 + patch.column * 5 + step * 3) % 9) - 4) / 10; return { ...patch, actualMoisture: Number(Math.max(0, patch.actualMoisture - farmConfig.evaporationRate + drift / 8).toFixed(1)), temperature: Number(Math.min(40, Math.max(20, patch.temperature + drift / 3)).toFixed(1)), humidity: Number(Math.min(90, Math.max(30, patch.humidity - drift / 2)).toFixed(1)) } } }

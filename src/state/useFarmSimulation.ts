@@ -2,50 +2,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { VirtualSolenoidActuator } from '../actuation/VirtualSolenoidActuator'
 import { RuleBasedDecisionEngine } from '../decision/RuleBasedDecisionEngine'
 import { createInitialFarm, farmConfig, type Farm, type FarmEvent } from '../models/farm'
-import { SimulatedSensorProvider } from '../simulation/SensorSimulator'
-
+import { SimulatedCapacitiveMoistureSensorProvider, SimulatedEnvironmentProvider } from '../simulation/SensorSimulator'
 const initialTime = new Date('2026-08-28T08:00:00')
-const makeEvent = (message: string, kind: FarmEvent['kind'] = 'system', time = initialTime) => ({ id: crypto.randomUUID(), time: time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), message, kind })
-
+const makeEvent = (message: string, kind: FarmEvent['kind'] = 'system', time = initialTime): FarmEvent => ({ id: crypto.randomUUID(), time: time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), message, kind })
 export function useFarmSimulation() {
-  const engine = useMemo(() => new RuleBasedDecisionEngine(farmConfig.moistureThreshold), [])
-  const sensors = useMemo(() => new SimulatedSensorProvider(farmConfig.evaporationRate), [])
-  const actuator = useMemo(() => new VirtualSolenoidActuator(engine, farmConfig.irrigationEffect, farmConfig.irrigationWaterLitres), [engine])
-  const [farm, setFarm] = useState<Farm>(createInitialFarm)
-  const [running, setRunning] = useState(false)
-  const [speed, setSpeed] = useState(1)
-  const [step, setStep] = useState(0)
-  const [simulationTime, setSimulationTime] = useState(initialTime)
-  const [events, setEvents] = useState<FarmEvent[]>([makeEvent('Digital farm initialized with simulated sensor data.')])
-
-  const advance = useCallback(() => {
-    setStep((previous) => previous + 1)
-    setSimulationTime((previous) => new Date(previous.getTime() + farmConfig.simulationStepMinutes * 60_000))
-    setFarm((previous) => {
-      const patches = previous.patches.map((patch) => {
-        const next = sensors.advance(patch, step + 1)
-        return { ...next, irrigationRequired: engine.requiresIrrigation(next) }
-      })
-      const newlyDry = patches.filter((patch, i) => patch.irrigationRequired && !previous.patches[i].irrigationRequired)
-      if (newlyDry.length) setEvents((log) => [...newlyDry.map((patch) => makeEvent(`Patch (${patch.row},${patch.column}) moisture dropped below threshold.`, 'warning', new Date(simulationTime.getTime() + farmConfig.simulationStepMinutes * 60_000))), ...log].slice(0, 40))
-      return { patches }
-    })
-  }, [engine, sensors, simulationTime, step])
-
+  const engine = useMemo(() => new RuleBasedDecisionEngine(farmConfig.moistureThreshold), []); const sensorProvider = useMemo(() => new SimulatedCapacitiveMoistureSensorProvider(farmConfig.sensorNoiseLevel), []); const environment = useMemo(() => new SimulatedEnvironmentProvider(), []); const actuator = useMemo(() => new VirtualSolenoidActuator(engine, farmConfig.irrigationEffect, farmConfig.irrigationWaterLitres), [engine])
+  const [farm, setFarm] = useState<Farm>(createInitialFarm); const [running, setRunning] = useState(false); const [autoMode, setAutoMode] = useState(false); const [speed, setSpeed] = useState(1); const [step, setStep] = useState(0); const [simulationTime, setSimulationTime] = useState(initialTime); const [events, setEvents] = useState<FarmEvent[]>([makeEvent('Digital farm initialized with 9 simulated capacitive moisture sensors.')])
+  const finishIrrigation = useCallback((row: number, column: number, time: Date, source: 'manual' | 'auto') => { setFarm((previous) => { const result = actuator.irrigatePatch(previous, row, column, time); const sampled = sensorProvider.sampleFarm(result.farm, time, step + 1, `patch-${row}-${column}`); const patches = sampled.patches.map((patch) => ({ ...patch, irrigationRequired: engine.requiresIrrigation(patch) })); setEvents((log) => [result.events[2], ...log].slice(0, 60)); return { ...sampled, patches } }); }, [actuator, engine, sensorProvider, step])
+  const irrigate = useCallback((row: number, column: number, source: 'manual' | 'auto' = 'manual') => { const target = farm.patches.find((patch) => patch.row === row && patch.column === column); const cooldown = target?.lastIrrigatedAt && simulationTime.getTime() - target.lastIrrigatedAt < farmConfig.irrigationCooldownMinutes * 60_000; if (!target || target.irrigationStatus === 'irrigating' || (source === 'auto' && cooldown)) return; setFarm((previous) => ({ ...previous, patches: previous.patches.map((patch) => patch.row === row && patch.column === column ? { ...patch, irrigationStatus: 'irrigating' } : patch) })); setEvents((log) => [makeEvent(`${source === 'auto' ? 'AUTO: ' : ''}Virtual solenoid activated for Patch (${row},${column}).`, 'action', simulationTime), makeEvent(`${source === 'auto' ? 'AUTO: ' : ''}Irrigation requested for Patch (${row},${column}).`, 'action', simulationTime), ...log].slice(0, 60)); window.setTimeout(() => finishIrrigation(row, column, simulationTime, source), farmConfig.irrigationDurationMs) }, [farm.patches, finishIrrigation, simulationTime])
+  const advance = useCallback(() => { const nextTime = new Date(simulationTime.getTime() + farmConfig.simulationStepMinutes * 60_000); const nextStep = step + 1; setStep(nextStep); setSimulationTime(nextTime); setFarm((previous) => { const environmentFarm = { ...previous, patches: previous.patches.map((patch) => environment.advance(patch, nextStep)) }; const sampled = sensorProvider.sampleFarm(environmentFarm, nextTime, nextStep); const patches = sampled.patches.map((patch) => ({ ...patch, irrigationRequired: engine.requiresIrrigation(patch) })); const newlyDry = patches.filter((patch, index) => patch.irrigationRequired && !previous.patches[index].irrigationRequired); if (newlyDry.length) setEvents((log) => [...newlyDry.map((patch) => makeEvent(`Sensor ${patch.sensorId}: Patch (${patch.row},${patch.column}) fell below threshold.`, 'warning', nextTime)), ...log].slice(0, 60)); if (autoMode) window.setTimeout(() => patches.filter((patch) => patch.irrigationRequired && patch.irrigationStatus === 'idle' && (!patch.lastIrrigatedAt || nextTime.getTime() - patch.lastIrrigatedAt >= farmConfig.irrigationCooldownMinutes * 60_000)).forEach((patch) => irrigate(patch.row, patch.column, 'auto')), 0); return { ...sampled, patches } }) }, [autoMode, engine, environment, irrigate, sensorProvider, simulationTime, step])
   useEffect(() => { if (!running) return; const timer = window.setInterval(advance, 1600 / speed); return () => window.clearInterval(timer) }, [advance, running, speed])
-  const irrigate = (row: number, column: number) => {
-    const target = farm.patches.find((patch) => patch.row === row && patch.column === column)
-    if (!target || target.irrigationStatus === 'irrigating') return
-    setFarm((previous) => ({ patches: previous.patches.map((patch) => patch.row === row && patch.column === column ? { ...patch, irrigationStatus: 'irrigating' } : patch) }))
-    setEvents((log) => [makeEvent(`Virtual solenoid activated for Patch (${row},${column}).`, 'action', simulationTime), makeEvent(`Irrigation requested for Patch (${row},${column}).`, 'action', simulationTime), ...log].slice(0, 40))
-    window.setTimeout(() => {
-      setFarm((previous) => {
-        const result = actuator.irrigatePatch(previous, row, column, simulationTime)
-        setEvents((log) => [result.events[2], ...log].slice(0, 40))
-        return result.farm
-      })
-    }, 650)
-  }
-  const reset = () => { setFarm(createInitialFarm()); setRunning(false); setStep(0); setSimulationTime(initialTime); setEvents([makeEvent('Simulation reset to initial simulated farm state.')]) }
-  return { farm, running, setRunning, speed, setSpeed, simulationTime, events, irrigate, reset }
+  const setSensorMoisture = (sensorId: string, moisture: number) => { if (!Number.isFinite(moisture) || moisture < 0 || moisture > 100) return false; setFarm((previous) => { const updated = sensorProvider.setReading(previous, sensorId, moisture, simulationTime); const patches = updated.patches.map((patch) => ({ ...patch, irrigationRequired: engine.requiresIrrigation(patch) })); return { ...updated, patches } }); setEvents((log) => [makeEvent(`Manual sensor test: ${sensorId} set to ${moisture.toFixed(1)}%.`, 'system', simulationTime), ...log].slice(0, 60)); return true }
+  const reset = () => { setFarm(createInitialFarm()); setRunning(false); setAutoMode(false); setStep(0); setSimulationTime(initialTime); setEvents([makeEvent('Simulation reset: 9 simulated sensors restored to initial state.')]) }
+  return { farm, running, setRunning, autoMode, setAutoMode, speed, setSpeed, simulationTime, events, irrigate, setSensorMoisture, reset }
 }
