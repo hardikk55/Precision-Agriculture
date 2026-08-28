@@ -1,4 +1,4 @@
-# Precision Agriculture Digital Farm — V3 Hardware-Ready
+# Precision Agriculture Digital Farm — V4 Monitoring
 
 This frontend-only university prototype for Prof. Lalit Kumar models a 3 × 3 digital farm. Every digital `(row, column)` patch maps one-to-one to the future physical patch at the same coordinate.
 
@@ -8,6 +8,7 @@ This frontend-only university prototype for Prof. Lalit Kumar models a 3 × 3 di
 - A hardware-ready data-source selector: **Simulation** remains the default; **Hardware** is safe while disconnected and preserves simulation data for switching back.
 - A compact hardware status strip with ESP32, sensor, actuator, and 3 × 3 sensor-map status.
 - Typed ESP32 sensor and irrigation-command contracts, without a backend, GPIO access, or fabricated production readings.
+- V4 monitoring: sensor health/age analytics, bounded chronological event timeline, browser CSV exports, and a closed-loop demo scenario.
 
 ## Sensor architecture
 
