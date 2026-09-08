@@ -1,1 +1,1 @@
-"""Digital Farm V5-Hardware backend package."""
+"""Digital Farm V5-Backend package."""

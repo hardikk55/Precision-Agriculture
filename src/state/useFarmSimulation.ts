@@ -15,12 +15,12 @@ export function useFarmSimulation() {
   useEffect(() => { if (!running) return; const timer = window.setInterval(advance, 1600 / speed); return () => window.clearInterval(timer) }, [advance, running, speed])
   useEffect(() => {
     if (dataSourceMode !== 'hardware') return
-    hardwareProvider.readSensors().then(({ sensors }) => {
+    hardwareProvider.readSensors().then(({ sensors, environment }) => {
       setFarm((previous) => ({
         ...previous,
         patches: previous.patches.map((patch) => {
           const reading = sensors.find((sensor) => sensor.id === patch.sensorId)
-          return reading?.moisture === null || !reading ? { ...patch, soilMoisture: Number.NaN, irrigationRequired: false, dataSource: 'measured' } : { ...patch, soilMoisture: reading.moisture, actualMoisture: reading.moisture, temperature: reading.temperature ?? patch.temperature, humidity: reading.humidity ?? patch.humidity, irrigationRequired: engine.requiresIrrigation({ ...patch, soilMoisture: reading.moisture }), dataSource: 'measured' }
+          return reading?.moisture === null || !reading ? { ...patch, soilMoisture: Number.NaN, temperature: Number.NaN, humidity: Number.NaN, irrigationRequired: false, dataSource: 'measured' } : { ...patch, soilMoisture: reading.moisture, actualMoisture: reading.moisture, temperature: environment?.temperature ?? Number.NaN, humidity: environment?.humidity ?? Number.NaN, irrigationRequired: engine.requiresIrrigation({ ...patch, soilMoisture: reading.moisture }), dataSource: 'measured' }
         }),
         sensors: previous.sensors.map((sensor) => {
           const reading = sensors.find((item) => item.id === sensor.id)

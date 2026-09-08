@@ -39,7 +39,7 @@ The browser must never directly operate high-power hardware. Future physical con
 
 `Sensor Provider → Sensor Reading → Farm/Patch State → RuleBasedDecisionEngine → safety_check → single command queue → ESP32 HTTP polling → sensor feedback`.
 
-Simulation remains runnable independently. V5-Hardware adds `server.app`, a compact FastAPI/SQLite backend with server-side calibration, a guarded single-command irrigation queue, HTTP telemetry/acknowledgements, and software E-stop. FastAPI never manipulates GPIO; only the ESP32 executes the fixed hardware sequence. `FARM_ML_PER_SECOND` starts unset, so physical irrigation is blocked until a measured flow rate is configured. MQTT, ML, and cloud infrastructure are not part of this project.
+Simulation remains runnable independently. V5-Backend adds `server.app`, a compact FastAPI/SQLite backend with server-side calibration, a guarded single-command irrigation queue, HTTP telemetry/acknowledgements, and software E-stop. FastAPI never manipulates GPIO; only the ESP32 executes the fixed hardware sequence. `FARM_ML_PER_SECOND` starts unset, so physical irrigation is blocked until a measured flow rate is configured. MQTT, ML, and cloud infrastructure are not part of this project.
 
 ## Scope and development rules
 
@@ -55,4 +55,4 @@ Simulation remains runnable independently. V5-Hardware adds `server.app`, a comp
 
 ## Roadmap
 
-V1 basic digital farm → V2 sensor-driven closed-loop simulation → V3 hardware-ready software → V4 monitoring/analytics/demo → V5-Hardware physical hardware integration → future ML/prediction/optimization. This roadmap may evolve with professor feedback.
+V1 basic digital farm → V2 sensor-driven closed-loop simulation → V3 hardware-ready software → V4 monitoring/analytics/demo → V5-Backend backend/ESP32 integration → future ML/prediction/optimization. This roadmap may evolve with professor feedback.

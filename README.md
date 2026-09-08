@@ -1,4 +1,4 @@
-# Precision Agriculture Digital Farm — V5-Hardware
+# Precision Agriculture Digital Farm — V5-Backend
 
 This project combines the V4 React dashboard with a FastAPI/SQLite backend. Every digital `(row, column)` patch maps one-to-one to the physical patch at the same coordinate.
 

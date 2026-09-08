@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
     yield
     app.state.db.close()
 
-app = FastAPI(title='Digital Farm V5-Hardware Backend', version='0.1.0', lifespan=lifespan)
+app = FastAPI(title='Digital Farm V5-Backend', version='0.1.0', lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=list(settings.allowed_origins), allow_credentials=False, allow_methods=['GET','POST','PUT'], allow_headers=['Content-Type'])
 
 def db(request: Request): return request.app.state.db
@@ -89,6 +89,7 @@ def ingest_telemetry(payload: Telemetry, request: Request):
 @app.get('/api/sensors')
 def sensors(request: Request):
     connection = db(request); rows = []
+    environment = connection.execute('SELECT timestamp, temperature, humidity FROM sensor_readings WHERE temperature IS NOT NULL OR humidity IS NOT NULL ORDER BY timestamp DESC LIMIT 1').fetchone()
     for item in PATCHES:
         reading = connection.execute('SELECT * FROM sensor_readings WHERE sensor_id=? ORDER BY timestamp DESC LIMIT 1', (item.sensor_id,)).fetchone()
         state = 'offline'
@@ -96,7 +97,7 @@ def sensors(request: Request):
             state = reading['status']
             if reading['status'] == 'valid' and (utcnow() - datetime.fromisoformat(reading['timestamp'])).total_seconds() > settings.sensor_max_age_seconds: state = 'stale'
         rows.append({'id': item.sensor_id, 'sensor_id': item.sensor_id, 'row': item.row, 'column': item.column, 'patch': {'row': item.row, 'column': item.column}, 'valve': item.valve, 'raw_adc': reading['raw_adc'] if reading else None, 'moisture': reading['moisture_percent'] if reading else None, 'moisture_percent': reading['moisture_percent'] if reading else None, 'timestamp': reading['timestamp'] if reading else None, 'temperature': reading['temperature'] if reading else None, 'humidity': reading['humidity'] if reading else None, 'status': state})
-    return {'sensors': rows}
+    return {'sensors': rows, 'environment': {'temperature': environment['temperature'], 'humidity': environment['humidity'], 'timestamp': environment['timestamp']} if environment else None}
 
 @app.get('/api/calibrations')
 def calibrations(request: Request):

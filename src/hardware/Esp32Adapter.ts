@@ -11,7 +11,7 @@ export interface Esp32SensorReading {
   temperature?: number | null
   humidity?: number | null
 }
-export interface Esp32SensorsResponse { sensors: Esp32SensorReading[] }
+export interface Esp32SensorsResponse { sensors: Esp32SensorReading[]; environment?: { temperature: number | null; humidity: number | null; timestamp: string } | null }
 export interface BackendCommand { id: string; created_at: string; row: number; column_number: number; valve: string; status: string; duration_ms: number; error: string | null }
 
 /** Contract for a future POST /api/actuators/irrigate request. */
