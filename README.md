@@ -1,6 +1,6 @@
-# Precision Agriculture Digital Farm — V4 Monitoring
+# Precision Agriculture Digital Farm — V5-Hardware
 
-This frontend-only university prototype for Prof. Lalit Kumar models a 3 × 3 digital farm. Every digital `(row, column)` patch maps one-to-one to the future physical patch at the same coordinate.
+This project combines the V4 React dashboard with a FastAPI/SQLite backend. Every digital `(row, column)` patch maps one-to-one to the physical patch at the same coordinate.
 
 ## Implemented now
 
@@ -28,7 +28,7 @@ For logical irrigation, the browser-side adapter defines a future `POST /api/act
 { "patch": { "row": 1, "column": 2 }, "action": "IRRIGATE", "durationMs": 650 }
 ```
 
-Physical ESP32 networking, pump drivers, relay circuitry, solenoids, and sensor hardware are **not implemented yet**. Hardware mode therefore reports ESP32 disconnected, 0/9 hardware sensors active, and actuator unavailable; it does not crash or erase simulated farm state.
+The browser uses `VITE_FARM_API_URL` (default `http://localhost:8000`) for the backend sensor boundary. FastAPI never controls GPIO; the ESP32 polls `/api/commands` and executes the fixed valve/pump sequence.
 
 ## Actuation architecture
 
@@ -40,6 +40,16 @@ The existing `VirtualSolenoidActuator` remains the active simulation implementat
 npm install
 npm run dev
 ```
+
+In a second terminal, start the backend:
+
+```bash
+python -m venv .venv
+.venv\\Scripts\\python -m pip install -r requirements.txt
+.venv\\Scripts\\python -m uvicorn server.app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+`FARM_ML_PER_SECOND` is deliberately unset by default. Set it only after measuring the physical flow rate; irrigation remains safely disabled until then.
 
 ## Production build
 

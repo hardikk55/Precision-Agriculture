@@ -3,7 +3,7 @@ export type IrrigationStatus = 'idle' | 'irrigating'
 export type SensorStatus = 'active' | 'offline'
 export type SensorHealth = 'healthy' | 'warning' | 'offline'
 export interface MoistureHistoryPoint { time: string; moisture: number; irrigated?: boolean }
-export interface MoistureSensor { id: string; type: 'Capacitive Soil Moisture'; row: number; column: number; currentReading: number; lastReading: string; lastSampleAt: number; status: SensorStatus; dataSource: 'simulated' }
+export interface MoistureSensor { id: string; type: 'Capacitive Soil Moisture'; row: number; column: number; currentReading: number; lastReading: string; lastSampleAt: number; status: SensorStatus; dataSource: 'simulated' | 'measured' }
 export interface Patch { id: string; row: number; column: number; sensorId: string; soilMoisture: number; actualMoisture: number; temperature: number; humidity: number; irrigationRequired: boolean; irrigationStatus: IrrigationStatus; lastIrrigated: string | null; lastIrrigatedAt: number | null; cumulativeWaterUsed: number; dataSource: DataSource; history: MoistureHistoryPoint[] }
 export interface IrrigationHistory { timestamp: string; row: number; column: number; mode: 'manual' | 'auto'; waterUsed: number }
 export interface Farm { patches: Patch[]; sensors: MoistureSensor[]; irrigationHistory: IrrigationHistory[] }

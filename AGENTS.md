@@ -37,9 +37,9 @@ The browser must never directly operate high-power hardware. Future physical con
 
 ## Current architecture
 
-`Sensor Provider → Sensor Reading → Farm/Patch State → RuleBasedDecisionEngine → Actuator Provider → Irrigation → updated moisture → sensor feedback`.
+`Sensor Provider → Sensor Reading → Farm/Patch State → RuleBasedDecisionEngine → safety_check → single command queue → ESP32 HTTP polling → sensor feedback`.
 
-Simulation is the working implementation. `SimulatedCapacitiveMoistureSensorProvider`, `SimulatedEnvironmentProvider`, and `VirtualSolenoidActuator` live separately from React UI. `ESP32HttpSensorProvider` is a typed, disconnected-safe boundary for future HTTP integration. React/Vite/TypeScript are the project technologies; no backend, database, MQTT, or authentication exists.
+Simulation remains runnable independently. V5-Hardware adds `server.app`, a compact FastAPI/SQLite backend with server-side calibration, a guarded single-command irrigation queue, HTTP telemetry/acknowledgements, and software E-stop. FastAPI never manipulates GPIO; only the ESP32 executes the fixed hardware sequence. `FARM_ML_PER_SECOND` starts unset, so physical irrigation is blocked until a measured flow rate is configured. MQTT, ML, and cloud infrastructure are not part of this project.
 
 ## Scope and development rules
 
@@ -55,4 +55,4 @@ Simulation is the working implementation. `SimulatedCapacitiveMoistureSensorProv
 
 ## Roadmap
 
-V1 basic digital farm → V2 sensor-driven closed-loop simulation → V3 hardware-ready software → V4 monitoring/analytics/demo → V5 ESP32/software integration → V6 physical hardware integration → future ML/prediction/optimization. This roadmap may evolve with professor feedback.
+V1 basic digital farm → V2 sensor-driven closed-loop simulation → V3 hardware-ready software → V4 monitoring/analytics/demo → V5-Hardware physical hardware integration → future ML/prediction/optimization. This roadmap may evolve with professor feedback.

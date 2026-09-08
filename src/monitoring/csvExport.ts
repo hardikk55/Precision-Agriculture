@@ -3,3 +3,9 @@ import type { Farm } from '../models/farm'
 const download = (filename: string, rows: string[][]) => { const csv = rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n'); const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); const link = document.createElement('a'); link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url) }
 export const exportSensorHistory = (farm: Farm, time: Date) => download('digital-farm-sensor-history.csv', [['timestamp', 'sensorId', 'row', 'column', 'moisture', 'healthStatus'], ...farm.patches.flatMap((patch) => { const sensor = farm.sensors.find((item) => item.id === patch.sensorId)!; return patch.history.map((point) => [point.time, sensor.id, String(patch.row), String(patch.column), String(point.moisture), sensorHealth(sensor, time)]) })])
 export const exportIrrigationHistory = (farm: Farm) => download('digital-farm-irrigation-history.csv', [['timestamp', 'row', 'column', 'mode', 'waterUsed'], ...farm.irrigationHistory.map((event) => [event.timestamp, String(event.row), String(event.column), event.mode, String(event.waterUsed)])])
+export const exportBackendCsv = async (kind: 'readings' | 'commands') => {
+  const baseUrl = import.meta.env.VITE_FARM_API_URL ?? 'http://localhost:8000'
+  const response = await fetch(`${baseUrl}/api/export.csv?kind=${kind}`)
+  if (!response.ok) throw new Error(`Backend CSV export failed (${response.status}).`)
+  const url = URL.createObjectURL(await response.blob()); const link = document.createElement('a'); link.href = url; link.download = kind === 'readings' ? 'farm-readings.csv' : 'farm-irrigation-history.csv'; link.click(); URL.revokeObjectURL(url)
+}
