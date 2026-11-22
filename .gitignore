@@ -1,4 +1,15 @@
+# Python
 .venv/
-farm.db
 __pycache__/
 *.pyc
+
+# Database
+farm.db
+
+# Node.js
+node_modules/
+
+# Production build
+dist/
+
+*.tsbuildinfo
