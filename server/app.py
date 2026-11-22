@@ -3,6 +3,8 @@ import io
 import sqlite3
 import threading
 import uuid
+import zipfile
+from pathlib import Path
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Literal
@@ -15,16 +17,17 @@ from pydantic import BaseModel, Field, model_validator
 from .calibration import moisture_percent
 from .config import ACK_TIMEOUT_SECONDS, ADC_MAX_VALID, ADC_MIN_VALID, DEFAULT_VOLUME_ML, MAX_DURATION_MS, NODE_ID, settings
 from .db import connect
+from .datasets import import_dataset, parse as parse_dataset
 from .farm_map import BY_PATCH, BY_SENSOR, PATCHES
 from .safety import SafetyError, safety_check, utcnow
 
 
 def iso_now() -> str: return utcnow().isoformat()
 
-class PatchInput(BaseModel): row: int = Field(ge=0, le=2); column: int = Field(ge=0, le=2)
+class PatchInput(BaseModel): row: int = Field(ge=0, le=1); column: int = Field(ge=0, le=1)
 class TelemetryReading(BaseModel): sensor_id: str; raw_adc: int = Field(ge=0, le=4095)
 class Telemetry(BaseModel):
-    node_id: str; firmware: str | None = None; readings: list[TelemetryReading] = Field(min_length=1, max_length=9)
+    node_id: str; firmware: str | None = None; readings: list[TelemetryReading] = Field(min_length=1, max_length=4)
     temperature: float | None = None; humidity: float | None = Field(default=None, ge=0, le=100)
     @model_validator(mode='after')
     def unique_sensors(self):
@@ -41,6 +44,9 @@ class AckInput(BaseModel): command_id: str; status: Literal['started', 'done', '
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.db = connect(settings.database_path); app.state.lock = threading.Lock()
+    seed_file = Path(__file__).resolve().parent.parent / 'data' / 'soil_moisture_weather_log_with_watering_status.xlsx'
+    if settings.seed_historical_data and not app.state.db.execute("SELECT 1 FROM datasets WHERE source_kind='seed'").fetchone() and seed_file.exists():
+        import_dataset(app.state.db, seed_file.read_bytes(), seed_file.name, 'seed', True)
     # A process restart must never assume a valve is still active.
     app.state.db.execute("UPDATE irrigation_commands SET status='failed', completed_at=?, error='Backend restarted before completion' WHERE status IN ('claimed','started')", (iso_now(),))
     yield
@@ -61,6 +67,58 @@ def expire_started(connection):
 def health(request: Request):
     db(request).execute('SELECT 1').fetchone()
     return {'status': 'ok', 'database': 'accessible'}
+
+@app.get('/api/connection/status')
+def connection_status(request: Request):
+    last = db(request).execute('SELECT timestamp FROM sensor_readings ORDER BY timestamp DESC LIMIT 1').fetchone()
+    return {'backend': 'reachable', 'esp32': 'unknown' if not last else 'last_telemetry_received', 'last_successful_communication': last['timestamp'] if last else None, 'sensor_count_expected': 4}
+
+@app.get('/api/datasets')
+def datasets(request: Request):
+    return {'datasets': [dict(row) for row in db(request).execute('SELECT id,filename,source_kind,imported_at,record_count,start_timestamp,end_timestamp,sensor_count,active,protected FROM datasets ORDER BY imported_at DESC')]}
+
+@app.post('/api/datasets/preview')
+async def preview_dataset(request: Request, filename: str = 'upload.csv'):
+    try:
+        _, preview = parse_dataset(await request.body(), filename)
+        return preview
+    except (ValueError, UnicodeDecodeError, zipfile.BadZipFile) as error:
+        fail(str(error))
+
+@app.post('/api/datasets/import', status_code=201)
+async def import_csv_dataset(request: Request, filename: str = 'upload.csv'):
+    try:
+        dataset_id, preview = import_dataset(db(request), await request.body(), filename)
+        return {'id': dataset_id, **preview}
+    except (ValueError, UnicodeDecodeError, zipfile.BadZipFile) as error:
+        fail(str(error))
+
+@app.put('/api/datasets/{dataset_id}/active')
+def activate_dataset(dataset_id: str, request: Request):
+    connection = db(request)
+    if not connection.execute('SELECT 1 FROM datasets WHERE id=?', (dataset_id,)).fetchone(): fail('Unknown dataset', 404)
+    with request.app.state.lock:
+        connection.execute('BEGIN IMMEDIATE')
+        try:
+            connection.execute('UPDATE datasets SET active=0'); connection.execute('UPDATE datasets SET active=1 WHERE id=?', (dataset_id,)); connection.execute('COMMIT')
+        except Exception: connection.execute('ROLLBACK'); raise
+    return {'id': dataset_id, 'active': True}
+
+@app.delete('/api/datasets/{dataset_id}')
+def delete_dataset(dataset_id: str, request: Request):
+    connection = db(request); row=connection.execute('SELECT protected FROM datasets WHERE id=?',(dataset_id,)).fetchone()
+    if not row: fail('Unknown dataset',404)
+    if row['protected']: fail('The bundled initial dataset is protected and cannot be deleted.',409)
+    connection.execute('DELETE FROM datasets WHERE id=?',(dataset_id,)); return {'deleted':dataset_id}
+
+@app.get('/api/datasets/{dataset_id}/readings')
+def historical_readings(dataset_id: str, request: Request, sensor_id: str | None = None):
+    connection=db(request)
+    if not connection.execute('SELECT 1 FROM datasets WHERE id=?',(dataset_id,)).fetchone(): fail('Unknown dataset',404)
+    query='SELECT * FROM historical_readings WHERE dataset_id=?'; values=[dataset_id]
+    if sensor_id: query+=' AND sensor_id=?'; values.append(sensor_id)
+    query+=' ORDER BY timestamp'
+    return {'readings':[dict(row) for row in connection.execute(query,values)]}
 
 @app.post('/api/telemetry', status_code=201)
 def ingest_telemetry(payload: Telemetry, request: Request):

@@ -7,12 +7,12 @@ from server.farm_map import BY_PATCH, BY_SENSOR
 
 
 def client(tmp_path, monkeypatch, flow=10.0):
-    monkeypatch.setattr(backend, 'settings', replace(backend.settings, database_path=str(tmp_path / 'test.db'), flow_ml_per_second=flow))
+    monkeypatch.setattr(backend, 'settings', replace(backend.settings, database_path=str(tmp_path / 'test.db'), flow_ml_per_second=flow, seed_historical_data=False))
     return TestClient(backend.app)
 
 
 def telemetry(c, raw=2000):
-    return c.post('/api/telemetry', json={'node_id': 'esp32-farm-01', 'readings': [{'sensor_id': f'S{r}{col}', 'raw_adc': raw} for r in range(3) for col in range(3)]})
+    return c.post('/api/telemetry', json={'node_id': 'esp32-farm-01', 'readings': [{'sensor_id': f'S{r}{col}', 'raw_adc': raw} for r in range(2) for col in range(2)]})
 
 
 def calibrate(c):
@@ -20,8 +20,8 @@ def calibrate(c):
 
 
 def test_mapping_and_calibration_bounds():
-    assert len(BY_SENSOR) == len(BY_PATCH) == 9
-    assert BY_PATCH[(0, 0)].sensor_id == 'S00' and BY_PATCH[(2, 2)].valve == 'V9'
+    assert len(BY_SENSOR) == len(BY_PATCH) == 4
+    assert BY_PATCH[(0, 0)].sensor_id == 'S00' and BY_PATCH[(1, 1)].valve == 'V4'
     assert moisture_percent(3000, 3000, 1000) == 0
     assert moisture_percent(1000, 3000, 1000) == 100
     assert moisture_percent(500, 1000, 3000) == 0 and moisture_percent(4000, 1000, 3000) == 100
@@ -30,7 +30,7 @@ def test_mapping_and_calibration_bounds():
 def test_telemetry_sensors_and_safe_irrigation(tmp_path, monkeypatch):
     with client(tmp_path, monkeypatch) as c:
         assert c.get('/api/health').status_code == 200
-        assert len(c.get('/api/sensors').json()['sensors']) == 9
+        assert len(c.get('/api/sensors').json()['sensors']) == 4
         calibrate(c); response = telemetry(c, 2000); assert response.status_code == 201
         record = c.get('/api/sensors').json()['sensors'][0]
         assert record['raw_adc'] == 2000 and record['moisture_percent'] == 50

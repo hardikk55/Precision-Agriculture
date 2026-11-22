@@ -1,4 +1,20 @@
-# Precision Agriculture Digital Farm — V5-Backend
+# Precision Agriculture Digital Farm — V6 2×2 Data Integration
+
+V6 represents exactly four physical pots: Pot 1/S00 `(0,0)`, Pot 2/S01 `(0,1)`, Pot 3/S10 `(1,0)`, and Pot 4/S11 `(1,1)`. GPIO, ADC/MUX and wiring identifiers are intentionally not guessed; the ESP32 firmware remains their authority.
+
+## Soil-moisture scale
+
+Historical soil moisture is a **1–5 score**, not a percentage. Scores **4/5 and 5/5** are sufficiently moist; **3/5, 2/5, and 1/5** require irrigation. The inclusive irrigation threshold is **≤3/5**. The original workbook values are stored unchanged and exports label these fields `soil_moisture_score_out_of_5`.
+
+## Historical data and datasets
+
+The supplied source workbook is preserved at `data/soil_moisture_weather_log_with_watering_status.xlsx`. On backend startup it is automatically and transactionally imported once as a protected seed dataset. The mapper uses Check date + Check time, Pot, raw ADC, before/after moisture, Watering status, temperature, humidity and rain fields. It maps `Pot 1`–`Pot 4` to the four V6 sensors and stores source metadata separately from live telemetry.
+
+Dataset endpoints provide `GET /api/datasets`, `POST /api/datasets/preview?filename=...`, `POST /api/datasets/import?filename=...`, `PUT /api/datasets/{id}/active`, `GET /api/datasets/{id}/readings`, and protected deletion. Upload raw CSV (or compatible XLSX) bytes after preview. Files are validated for timestamps, numeric moisture, all four pots, duplicate timestamp/sensor pairs, and unsupported identifiers. Historical imports never issue irrigation commands.
+
+## Optional ESP32 connectivity
+
+The browser uses `VITE_FARM_API_URL` (default `http://localhost:8000`) and calls FastAPI, not GPIO. `/api/health` and `/api/connection/status` report backend/recent telemetry state. Firmware must POST four unique sensor IDs (`S00`, `S01`, `S10`, `S11`) to `/api/telemetry`; it polls `/api/commands` and acknowledges `/api/ack`. Live connectivity has not been physically tested. Historical data remains usable offline. `FARM_ML_PER_SECOND` must be measured and configured before physical irrigation can be queued.
 
 This project combines the V4 React dashboard with a FastAPI/SQLite backend. Every digital `(row, column)` patch maps one-to-one to the physical patch at the same coordinate.
 

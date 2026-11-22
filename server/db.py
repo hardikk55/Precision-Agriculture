@@ -13,7 +13,10 @@ CREATE TABLE IF NOT EXISTS irrigation_commands (
  requested_volume_ml REAL NOT NULL, duration_ms INTEGER NOT NULL, status TEXT NOT NULL, started_at TEXT, completed_at TEXT,
  moisture_before REAL, moisture_after REAL, error TEXT, retry_count INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS system_state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS datasets (id TEXT PRIMARY KEY, filename TEXT NOT NULL, source_kind TEXT NOT NULL, import_key TEXT NOT NULL UNIQUE, imported_at TEXT NOT NULL, record_count INTEGER NOT NULL, start_timestamp TEXT, end_timestamp TEXT, sensor_count INTEGER NOT NULL, active INTEGER NOT NULL DEFAULT 0, protected INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS historical_readings (id INTEGER PRIMARY KEY, dataset_id TEXT NOT NULL REFERENCES datasets(id) ON DELETE CASCADE, timestamp TEXT NOT NULL, sensor_id TEXT NOT NULL, pot INTEGER NOT NULL, raw_adc REAL, moisture_before REAL, raw_adc_after REAL, moisture_after REAL, watering_status TEXT, temperature REAL, humidity REAL, rain_mm REAL, UNIQUE(dataset_id,timestamp,sensor_id));
 CREATE INDEX IF NOT EXISTS readings_sensor_time ON sensor_readings(sensor_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS historical_dataset_sensor_time ON historical_readings(dataset_id,sensor_id,timestamp DESC);
 CREATE INDEX IF NOT EXISTS commands_status ON irrigation_commands(status, created_at);
 '''
 

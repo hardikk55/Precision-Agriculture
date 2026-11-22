@@ -2,23 +2,23 @@
 
 ## Purpose
 
-University Precision Agriculture project under Prof. Lalit Kumar. The goal is a small digital twin that will later connect to a physical prototype. The physical and digital farms are both 3 × 3 (9 patches), with strict one-to-one correspondence:
+University Precision Agriculture project under Prof. Lalit Kumar. V6 has a 2 × 2 physical and digital farm (four patches), with strict one-to-one correspondence:
 
 ```
-Digital (0,0) ↔ Physical (0,0)   Digital (0,1) ↔ Physical (0,1)   Digital (0,2) ↔ Physical (0,2)
-Digital (1,0) ↔ Physical (1,0)   Digital (1,1) ↔ Physical (1,1)   Digital (1,2) ↔ Physical (1,2)
-Digital (2,0) ↔ Physical (2,0)   Digital (2,1) ↔ Physical (2,1)   Digital (2,2) ↔ Physical (2,2)
+Digital (0,0) ↔ Pot 1   Digital (0,1) ↔ Pot 2
+Digital (1,0) ↔ Pot 3   Digital (1,1) ↔ Pot 4
 ```
 
 ## Sensor and environment rules
 
-There are exactly nine capacitive soil-moisture sensors—one per physical patch. This mapping is a project invariant and must not change without explicit project approval:
+There are exactly four capacitive soil-moisture sensors—one per physical pot. This mapping is a project invariant:
 
 ```
-S00 → (0,0)  S01 → (0,1)  S02 → (0,2)
-S10 → (1,0)  S11 → (1,1)  S12 → (1,2)
-S20 → (2,0)  S21 → (2,1)  S22 → (2,2)
+S00 → Pot 1/(0,0)  S01 → Pot 2/(0,1)
+S10 → Pot 3/(1,0)  S11 → Pot 4/(1,1)
 ```
+
+Soil moisture is a 1–5 score, not a percentage. Scores 4/5–5/5 are moist; scores ≤3/5 require irrigation. Preserve original historical scores without percent conversion.
 
 Temperature and humidity are simulated global/environmental measurements. Do not represent them as nine independent physical sensors. The physical sensing priority is the nine moisture sensors.
 
@@ -47,7 +47,7 @@ Simulation remains runnable independently. V5-Backend adds `server.app`, a compa
 - Keep simulation runnable with `npm run dev`, independent of hardware.
 - Keep provider/actuator abstractions clean; do not put business logic in components.
 - Use actual farm state for dashboard/analytics; do not hardcode statistics.
-- Keep 3 × 3 and sensor mappings as a single source of truth.
+- Keep 2 × 2 and sensor mappings as a single source of truth. V6 seeds its protected historical workbook automatically and keeps historical, live, and simulated readings separate.
 - Do not add ML, gantry, robotic arm, fertilizer, pesticide, computer vision, or optimization unless explicitly requested.
 - Do not claim real ESP32/hardware operation unless connected and tested.
 - Run `npm run build` after significant changes.
