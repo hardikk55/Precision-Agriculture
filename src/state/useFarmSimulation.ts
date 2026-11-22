@@ -27,7 +27,7 @@ export function useFarmSimulation() {
           return !reading ? { ...sensor, currentReading: Number.NaN, status: 'offline', dataSource: 'measured' as const } : { ...sensor, currentReading: reading.moisture ?? Number.NaN, lastReading: reading.timestamp ?? 'unavailable', lastSampleAt: reading.timestamp ? new Date(reading.timestamp).getTime() : 0, status: reading.status === 'valid' ? 'active' : 'offline', dataSource: 'measured' as const }
         })
       }))
-      setEvents((log) => [makeEvent(`Backend sensor refresh received: ${sensors.filter((sensor) => sensor.status === 'valid').length}/9 valid calibrated readings.`, 'system', new Date()), ...log].slice(0, 60))
+      setEvents((log) => [makeEvent(`Backend sensor refresh received: ${sensors.filter((sensor) => sensor.status === 'valid').length}/4 valid calibrated readings.`, 'system', new Date()), ...log].slice(0, 60))
       hardwareProvider.readCommandHistory().then((commands) => setEvents((log) => [...commands.map((command) => makeEvent(`Backend command ${command.id.slice(0, 8)}: Patch (${command.row},${command.column_number}) ${command.status}${command.error ? ` — ${command.error}` : ''}.`, command.status === 'failed' ? 'warning' : 'action', new Date(command.created_at))), ...log].slice(0, 60))).catch(() => undefined)
     }).catch((error: Error) => setEvents((log) => [makeEvent(`Backend unavailable: ${error.message}`, 'warning', simulationTime), ...log].slice(0, 60)))
   }, [dataSourceMode, engine, hardwareProvider, simulationTime])
