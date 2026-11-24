@@ -24,7 +24,7 @@ Temperature and humidity are simulated global/environmental measurements. Do not
 
 ## Irrigation
 
-Physical target architecture: water tank → pump → manifold → solenoid-controlled irrigation lines → 3 × 3 farm. Coordinate-specific behavior is mandatory: irrigating `(1,2)` must affect only `(1,2)`.
+Physical target architecture: water tank → pump → manifold → solenoid-controlled irrigation lines → the four-pot 2 × 2 farm. Coordinate-specific behavior is mandatory: irrigating a pot must affect only that mapped pot.
 
 The browser must never directly operate high-power hardware. Future physical control is the ESP32/hardware layer's responsibility, using suitable drivers, relays/MOSFETs, power supplies, reservoir, tubing, and manifold.
 
@@ -38,6 +38,10 @@ The browser must never directly operate high-power hardware. Future physical con
 ## Current architecture
 
 `Sensor Provider → Sensor Reading → Farm/Patch State → RuleBasedDecisionEngine → safety_check → single command queue → ESP32 HTTP polling → sensor feedback`.
+
+The V6 frontend presents this state through the **Precision Agriculture Field Research Console**. Its React Three Fiber/Three.js irrigation-system twin is a visual subscriber to `Patch.irrigationStatus`, not an actuator or decision engine: in Simulation mode only an existing command can animate the shared pump, mapped valve, and mapped pipe; in Recorded mode it remains static and read-only. The twin depicts the V6 four-pot mapping (Pot 1/S00/V1 through Pot 4/S11/V4) and must never imply confirmed physical pump or valve operation. It keeps free orbit controls and useful bounded zoom, with Reset restoring the intended isometric overview and a static fallback for unavailable WebGL.
+
+The Historical Replay workspace is also read-only. It groups imported readings by actual timestamps, uses the recorded watering status only to animate historical valve/pump events, and keeps its replay state separate from interactive simulation. Its configurable plant-growth values are deterministic estimates derived from recorded moisture and global environmental conditions; they are explicitly not experimental growth measurements.
 
 Simulation remains runnable independently. V5-Backend adds `server.app`, a compact FastAPI/SQLite backend with server-side calibration, a guarded single-command irrigation queue, HTTP telemetry/acknowledgements, and software E-stop. FastAPI never manipulates GPIO; only the ESP32 executes the fixed hardware sequence. `FARM_ML_PER_SECOND` starts unset, so physical irrigation is blocked until a measured flow rate is configured. MQTT, ML, and cloud infrastructure are not part of this project.
 
@@ -56,3 +60,9 @@ Simulation remains runnable independently. V5-Backend adds `server.app`, a compa
 ## Roadmap
 
 V1 basic digital farm → V2 sensor-driven closed-loop simulation → V3 hardware-ready software → V4 monitoring/analytics/demo → V5-Backend backend/ESP32 integration → future ML/prediction/optimization. This roadmap may evolve with professor feedback.
+
+## V6 historical environment and presentation
+
+- Historical replay uses each imported timestamp as stored by the backend (currently UTC for naïve workbook values); it does not rewrite historical timestamps or apply a hidden offset.
+- Day/night rendering is an offline astronomical approximation driven by the replay playhead. The project has no documented farm coordinates, so latitude, longitude, and IANA timezone must be entered in the replay panel before displaying calculated sunrise, sunset, or solar elevation. These are calculated context, never measurements.
+- Presentation Mode is a client-side, six-scene guided walkthrough. It reuses the same recorded state, replay, analytics, and 3D twin; it does not create a second data path or provide physical hardware control.
